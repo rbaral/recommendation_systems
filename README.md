@@ -1,4 +1,4 @@
-# recommendation systems
+# Recommendation Systems
 
 This repository contains information about recommendation systems from scratch. 
 This repo is intended for anyone starting to learn about recommendation systems. 
