@@ -8,11 +8,11 @@ We will also provide the details on the code and data that are used to create a 
 
 Many resources were refered during I worked on this repo. I would like to acknowledge all the resources I refered while working on this repo.
 
-# Following types of recommendations are included in this project:
+## Following types of recommenders are included in this project:
 
 
-### Collaborative Filtering Using ALS
+#### Collaborative Filtering Using ALS
 Check the details inside the folder reco_als.
 
-### LightFM Recommendation
+#### LightFM Recommendation
 Check the details inside folder reco_lightfm.
