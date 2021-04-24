@@ -10,6 +10,8 @@ Many resources were refered during I worked on this repo. I would like to acknow
 
 # Following types of recommendations are included in this project:
 
-## LightFM Recommendation
+### LightFM Recommendation
+Check the details inside folder reco_lightfm.
 
-## Collaborative Filtering Using ALS
+### Collaborative Filtering Using ALS
+Check the details inside the folder reco_als.
