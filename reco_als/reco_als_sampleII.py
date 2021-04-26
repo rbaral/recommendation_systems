@@ -1,10 +1,9 @@
 """
-A simple example of ALS reco model
+A sample ALS Recommender System
 
 Ref:
-https://spark.apache.org/examples.html
-
-https://github.com/KevinLiao159/MyDataSciencePortfolio/blob/master/movie_recommender/src/als_recommender.py
+1) Spark Website
+2) https://raw.githubusercontent.com/KevinLiao159/MyDataSciencePortfolio/master/movie_recommender/src/als_recommender.py
 """
 
 #basic imports
@@ -20,7 +19,7 @@ from pyspark.ml.evaluation import RegressionEvaluator
 from pyspark.ml.recommendation import ALS
 
 
-class AlsRecommender:
+class RecommenderALS:
     """
     This a collaborative filtering recommender with Alternating Least Square
     Matrix Factorization, which is implemented by Spark
@@ -173,6 +172,7 @@ class AlsRecommender:
             .select(['userId', 'movieId'])
         return inferenceDF
 
+
     def _inference(self, model, fav_movie, n_recommendations):
         """
         return top n movie recommendations based on user's input movie
@@ -206,6 +206,7 @@ class AlsRecommender:
             .rdd.map(lambda r: (r[0], r[1])) \
             .take(n_recommendations)
 
+
     def make_recommendations(self, fav_movie, n_recommendations):
         """
         make top n movie recommendations
@@ -217,6 +218,8 @@ class AlsRecommender:
         n_recommendations: int, top n recommendations
         """
         # make inference and get raw recommendations
+        print("******************************************")
+        print("******************************************")
         print('Recommendation system start to make inference ...')
         t0 = time.time()
         raw_recommends = \
@@ -235,12 +238,9 @@ class AlsRecommender:
         print("******************************************")
         print("******************************************")
         print('Recommendations for {}:'.format(fav_movie))
-        print("******************************************")
         for i in range(len(movie_titles)):
             print('{0}: {1}, with rating '
                   'of {2}'.format(i+1, movie_titles[i], scores[i]))
-        print("******************************************")
-        print("******************************************")
 
 
 class Dataset:
@@ -329,39 +329,45 @@ def parse_args():
     parser = argparse.ArgumentParser(
         prog="Movie Recommender",
         description="Run ALS Movie Recommender")
-    parser.add_argument('--path', nargs='?', default='../data/MovieLens',
+    parser.add_argument('--path', nargs='?', required=False, default='../data',
                         help='input data path')
-    parser.add_argument('--movies_filename', nargs='?', default='movielens_movies.csv',
+    parser.add_argument('--movies_filename', nargs='?', required=False, default='movielens_movies.csv',
                         help='provide movies filename')
-    parser.add_argument('--ratings_filename', nargs='?', default='ratings.csv',
+    parser.add_argument('--ratings_filename', nargs='?', required=False, default='movielens_ratings.csv',
                         help='provide ratings filename')
-    parser.add_argument('--movie_name', nargs='?', default='',
+    parser.add_argument('--movie_name', nargs='?', required=False, default='Titanic',
                         help='provide your favoriate movie name')
-    parser.add_argument('--top_n', type=int, default=10,
+    parser.add_argument('--top_n', type=int, required=False, default=10,
                         help='top n movie recommendations')
     return parser.parse_args()
 
 
 if __name__ == '__main__':
     # get args
-    data_path = "data"
-    movies_filename = "movielens_movies.csv"
-    ratings_filename = "movielens_ratings.csv"
-    movie_name = "Titanic"
-    top_n = 10
+    args = parse_args()
+    data_path = args.path
+    movies_filename = args.movies_filename
+    ratings_filename = args.ratings_filename
+    movie_name = args.movie_name
+    top_n = args.top_n
+
     # initial spark
     spark = SparkSession \
         .builder \
-        .appName("movie recommender") \
+        .appName("Sample movie recommender") \
         .getOrCreate()
+
     # initial recommender system
-    recommender = AlsRecommender(
+    recommender = RecommenderALS(
         spark,
         os.path.join(data_path, movies_filename),
         os.path.join(data_path, ratings_filename))
+
     # set params
     recommender.set_model_params(10, 0.05, 20)
+
     # make recommendations
     recommender.make_recommendations(movie_name, top_n)
+
     # stop
     spark.stop()
