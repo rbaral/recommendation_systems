@@ -1,0 +1,37 @@
+https://blog.insightdatascience.com/multi-armed-bandits-for-dynamic-movie-recommendations-5eb8f325ed1d
+https://github.com/brian-c-ogorman/ABanditTesting
+https://towardsdatascience.com/solving-cold-user-problem-for-recommendation-system-using-multi-armed-bandit-d36e42fe8d44
+
+https://www.offerzen.com/blog/how-to-build-a-product-recommender-using-multi-armed-bandit-algorithms
+
+
+Movie Recommendation: https://github.com/jldbc/bandits
+
+
+Bandit Algorithm for Website Optimization: https://github.com/johnmyleswhite/BanditsBook
+
+Python Library for MAB:
+
+https://github.com/bgalbraith/bandits
+
+https://github.com/david-cortes/contextualbandits
+
+https://github.com/jldbc/bandits
+
+
+https://www.davidsilver.uk/wp-content/uploads/2020/03/XX.pdf
+
+https://jamesrledoux.com/algorithms/bandit-algorithms-epsilon-ucb-exp-python/
+
+https://jamesrledoux.com/algorithms/offline-bandit-evaluation/
+
+https://www.cs.princeton.edu/~schapire/papers/www10.pdf
+
+https://arxiv.org/pdf/1502.03473.pdf
+
+http://www.cs.cornell.edu/~adith/CfactSIGIR2016/
+
+https://arxiv.org/pdf/1706.05378.pdf
+
+https://www.analyticsvidhya.com/blog/2018/09/reinforcement-multi-armed-bandit-scratch-python/
+
