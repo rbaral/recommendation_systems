@@ -17,38 +17,9 @@ np.random.seed(42)
 # spark imports
 from pyspark.sql import SparkSession, Row
 from pyspark.sql import functions as F
+from pyspark.sql import types as T
 from pyspark.ml.evaluation import RegressionEvaluator
 from pyspark.ml.recommendation import ALS
-
-
-class Dataset:
-    """
-    data object make loading raw files easier
-    """
-    def __init__(self, spark_session, filepath):
-        """
-        spark dataset constructor
-        """
-        self.spark = spark_session
-        self.sc = spark_session.sparkContext
-        self.filepath = filepath
-        # build spark data object
-        self.RDD = self.load_file_as_RDD(self.filepath)
-        self.DF = self.load_file_as_DF(self.filepath)
-
-    def load_file_as_RDD(self, filepath):
-        ratings_RDD = self.sc.textFile(filepath)
-        header = ratings_RDD.take(1)[0]
-        return ratings_RDD \
-            .filter(lambda line: line != header) \
-            .map(lambda line: line.split(",")) \
-            .map(lambda tokens: (int(tokens[0]), int(tokens[1]), float(tokens[2]))) # noqa
-
-    def load_file_as_DF(self, filepath):
-        ratings_RDD = self.load_file_as_rdd(filepath)
-        ratingsRDD = ratings_RDD.map(lambda tokens: Row(
-            userId=int(tokens[0]), movieId=int(tokens[1]), rating=float(tokens[2]))) # noqa
-        return self.spark.createDataFrame(ratingsRDD)
 
 
 def tune_ALS(model, train_data, validation_data, maxIter, regParams, ranks):
@@ -139,12 +110,15 @@ class RecommenderALS:
         #get the rating data
         self.ratingsDF = self._load_file(path_ratings) \
             .select([self.userCol, self.itemCol, self.ratingCol])
-        #init als model
-        self.model = ALS(
+        #init als object
+        self.als = ALS(
             userCol=self.userCol,
             itemCol=self.itemCol,
             ratingCol=self.ratingCol,
             coldStartStrategy=self.coldStartStrategy)
+        #placeholder for model, we will init and fit it later
+        self.model = self.als
+
 
     def _load_file(self, filepath):
         """
@@ -169,6 +143,7 @@ class RecommenderALS:
             .setMaxIter(maxIter) \
             .setRank(rank) \
             .setRegParam(regParam)
+        self.als = self.als.setMaxIter(maxIter).setRank(rank).setRegParam(regParam)
 
 
     def tune_model(self, maxIter, regParams, ranks, split_ratio=(0.6, 0.2, 0.2)):
@@ -219,10 +194,11 @@ class RecommenderALS:
                                         predictionCol="prediction")
         rmse = evaluator.evaluate(predictions)
         print('{} latent factors and regularization = {}: '
-              'validation RMSE is {}'.format(self.model.getRank(), self.model.getRegParam(), rmse))
+              'validation RMSE is {}'.format(self.model.getRank(),
+                                             self.model.getRegParam(), rmse))
         self.model = model
 
-    def _regex_matching(self, fav_movie):
+    def _regex_match_items(self, fav_movie):
         """
         return the closest matches via SQL regex.
         If no match found, return None
@@ -263,8 +239,7 @@ class RecommenderALS:
         movieIds: int, movieIds of user's favorite movies
         """
         # create new user rdd
-        user_rdd = self.sc.parallelize(
-            [(userId, movieId, 5.0) for movieId in movieIds])
+        user_rdd = self.sc.parallelize([(userId, movieId, 5.0) for movieId in movieIds])
         # transform to user rows
         user_rows = user_rdd.map(
             lambda x: Row(
@@ -323,11 +298,11 @@ class RecommenderALS:
         # create a userId
         userId = self.ratingsDF.agg({"userId": "max"}).collect()[0][0] + 1
         # get movieIds of favorite movies
-        movieIds = self._regex_matching(fav_movie)
+        movieIds = self._regex_match_items(fav_movie)
         # append new user with his/her ratings into data
         self._append_ratings(userId, movieIds)
         # matrix factorization
-        model = model.fit(self.ratingsDF)
+        model = self.als.fit(self.ratingsDF)
         # get data for inferencing
         inferenceDF = self._create_inference_data(userId, movieIds)
         # make inference
@@ -374,7 +349,24 @@ class RecommenderALS:
                   'of {2}'.format(i+1, movie_titles[i], scores[i]))
 
 
-    def recommend_for_user(self):
+    def infer_similar_items(self, item_ids, n_recommendations=10):
+        # create a proxy userId
+        userId = self.ratingsDF.agg({"userId": "max"}).collect()[0][0] + 1
+        # append new user with his/her ratings into data
+        self._append_ratings(userId, item_ids)
+        # matrix factorization
+        model = self.als.fit(self.ratingsDF)
+        # get data for inferencing
+        inferenceDF = self._create_inference_data(userId, item_ids)
+        # make inference
+        return model.transform(inferenceDF) \
+            .select(['movieId', 'prediction']) \
+            .orderBy('prediction', ascending=False) \
+            .rdd.map(lambda r: (r[0], r[1])) \
+            .take(n_recommendations)
+
+
+    def recommend_item_for_user(self):
         """
         we take sample users and recommend items for the users,
         alternatively we can explicitly take some userId and recommend
@@ -382,7 +374,7 @@ class RecommenderALS:
         :return:
         """
         print("****************")
-        print("recommending for users")
+        print("recommending items for users")
         #take only the first user
         users = self.ratingsDF.select(self.userCol).distinct().limit(1)
         user_recs = self.model.recommendForUserSubset(users, 10)
@@ -391,6 +383,56 @@ class RecommenderALS:
         #get the item title as well
         user_recs_items = user_recs_items.join(self.moviesDF, [self.itemCol]).select(F.col(self.userCol), F.col(self.itemCol), F.col(self.ratingCol), "title", "genres")
         print(user_recs_items.show(10, False))
+
+
+    def recommend_users_for_item(self, item_name):
+        """
+        we take sample item and recommend the users who might be
+        interested for the given item
+        :param item_name:
+        :return:
+        """
+        print("****************")
+        print("recommending users for items")
+        #get itemIds of the items that match the given item_name
+        matched_items = self._regex_match_items(fav_movie=item_name)
+        items = self.spark.createDataFrame(matched_items, T.IntegerType()).withColumnRenamed("value", self.itemCol) #self.ratingsDF.select(self.itemCol).distinct().limit(1)
+        item_recs = self.model.recommendForItemSubset(items, 10)
+        item_recs = item_recs.select(F.col(self.itemCol), F.explode(F.col("recommendations")).alias("recommendations")).select(F.col(self.itemCol), F.col("recommendations.userId"), F.col("recommendations.rating"))
+        print(item_recs.show(100, False))
+
+
+    def recommend_similar_items(self, item_name):
+        """
+        we take sample item and recommend the items that might be
+        interested to the users who liked the given item
+        :param item_name:
+        :return:
+        """
+        print("****************")
+        print("recommending items for given item")
+        # get itemIds of the items that match the given item_name
+        matched_items = self._regex_match_items(fav_movie=item_name)
+        #item_ids = self.spark.createDataFrame(matched_items, T.IntegerType()).withColumnRenamed("value",self.itemCol)
+        #get inferred reco
+        t0 = time.time()
+        inferred_reco = self.infer_similar_items(matched_items)
+        print('It took {:.2f}s to make inference'.format(time.time() - t0))
+        movieIds = [r[0] for r in inferred_reco]
+        scores = [r[1] for r in inferred_reco]
+        # get movie titles
+        movie_titles = self.moviesDF \
+            .filter(F.col('movieId').isin(movieIds)) \
+            .select('title') \
+            .rdd.map(lambda r: r[0]) \
+            .collect()
+        # print recommendations
+        print("******************************************")
+        print("******************************************")
+        print('Recommendations for {}:'.format(item_name))
+        for i in range(len(movie_titles)):
+            print('{0}: {1}, with rating '
+                  'of {2}'.format(i + 1, movie_titles[i], scores[i]))
 
 
 
@@ -424,12 +466,14 @@ if __name__ == '__main__':
     #train model
     recommender.train_model()
 
-    #recommend for some users
-    recommender.recommend_for_user()
+    #recommend items for users
+    recommender.recommend_item_for_user()
 
+    #recommend users for items
+    recommender.recommend_users_for_item(item_name="Titanic")
 
-    # make recommendations
-    #recommender.make_recommendations(movie_name, top_n)
+    # recommend items for given items, that are preferred by a subset of user
+    recommender.recommend_similar_items(item_name="Titanic")
 
     # stop
     spark.stop()
