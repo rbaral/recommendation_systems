@@ -14,7 +14,7 @@ from pyspark.ml.recommendation import ALS
 
 #constants
 #path to the ratings file
-FILE_RATINGS = "data/movielens_ratings.csv"
+FILE_RATINGS = "../data/movielens_ratings.csv"
 
 
 def get_spark():
@@ -26,6 +26,10 @@ def get_spark():
         .builder \
         .appName("ALS sample movie recommender") \
         .getOrCreate()
+
+    # disable log
+    spark.sparkContext.setLogLevel("ERROR")
+
     return spark
 
 
@@ -80,14 +84,14 @@ def get_user_reco(als, model):
 
     #display the results
     print("User recommendations")
-    userRecs.show()
+    userRecs.show(10, False)
     print("Movie recommendations")
-    movieRecs.show()
+    movieRecs.show(10, False)
 
     print("User subset recommendations")
-    userSubsetRecs.show()
+    userSubsetRecs.show(10, False)
     print("Movie subset recommendations")
-    movieSubSetRecs.show()
+    movieSubSetRecs.show(10, False)
 
 
 spark = get_spark()
